@@ -1,0 +1,62 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+**/node_modules/
+vendor/
+**/vendor/
+
+# Next.js & Build
+.next/
+**/.next/
+out/
+dist/
+dist-ssr/
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Backend / Laravel caches and storage
+.phpunit.cache
+/erp-backend/storage/*.key
+/erp-backend/storage/pail
+/erp-backend/storage/framework/cache/data/*
+/erp-backend/storage/framework/sessions/*
+/erp-backend/storage/framework/views/*
+/erp-backend/storage/logs/*
+!/erp-backend/storage/logs/.gitignore
+!/erp-backend/storage/framework/.gitignore
+
+# Context, Mobile, AI and Non-code data
+erp-context/
+erp-mobile/
+old_system_data/
+_removed-aidlc-backup/
+aidlc/
+.claude/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
