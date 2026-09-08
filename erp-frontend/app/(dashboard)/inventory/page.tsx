@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, Plus, AlertTriangle, Package,
-  CheckCircle, Flag, ChevronLeft, ChevronRight, X, Camera,
+  CheckCircle, Flag, ChevronLeft, ChevronRight, X, Camera, MapPin,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -23,8 +23,13 @@ const DEFAULT_FORM: PartFormData = {
   brand_id: null,
   unit_id: null,
   min_stock_qty: 0,
+  list_price: null,
   is_active: true,
 };
+
+function formatAed(v: number) {
+  return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED", minimumFractionDigits: 2 }).format(v);
+}
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -45,6 +50,7 @@ export default function InventoryPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [locationsFor, setLocationsFor] = useState<Part | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery<PaginatedResponse<Part>>({
@@ -123,6 +129,7 @@ export default function InventoryPage() {
       brand_id: part.brand_id,
       unit_id: part.unit_id,
       min_stock_qty: part.min_stock_qty,
+      list_price: part.list_price,
       is_active: part.is_active,
     });
     setImageFile(null);
@@ -249,6 +256,9 @@ export default function InventoryPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Unit</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Stock</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Min</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">List Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Last Cost</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Stock Value</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -259,7 +269,7 @@ export default function InventoryPage() {
                 : parts.length === 0
                   ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-16 text-center text-sm text-gray-400">
+                      <td colSpan={13} className="px-6 py-16 text-center text-sm text-gray-400">
                         No parts found. Add your first part to get started.
                       </td>
                     </tr>
@@ -282,14 +292,21 @@ export default function InventoryPage() {
                       <td className="px-4 py-3 text-gray-600">{part.brand_name ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-600">{part.unit_abbreviation ?? part.unit_name ?? "—"}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={cn(
-                          "font-semibold",
-                          part.is_low_stock ? "text-red-600" : "text-gray-900"
-                        )}>
+                        <button
+                          onClick={() => setLocationsFor(part)}
+                          className={cn(
+                            "font-semibold hover:underline",
+                            part.is_low_stock ? "text-red-600" : "text-gray-900"
+                          )}
+                          title="View / edit bin locations"
+                        >
                           {part.total_stock ?? 0}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500">{part.min_stock_qty}</td>
+                      <td className="px-4 py-3 text-right text-gray-900">{part.list_price != null ? formatAed(part.list_price) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{part.last_cost != null ? formatAed(part.last_cost) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{part.stock_value != null ? formatAed(part.stock_value) : "—"}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {part.is_low_stock && (
@@ -468,6 +485,17 @@ export default function InventoryPage() {
                 />
               </div>
 
+              <Input
+                label="List Price (AED)"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.list_price != null ? String(form.list_price) : ""}
+                onChange={(e) => setForm((f) => ({ ...f, list_price: e.target.value ? Number(e.target.value) : null }))}
+                placeholder="Optional — standard selling price for this part"
+                hint="Reference price shown on the catalog. Sales still enter the price per line manually."
+              />
+
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -500,6 +528,91 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
+      {/* Bin locations modal — erp-context/decisions/ADR-008 */}
+      {locationsFor && (
+        <LocationsModal
+          part={locationsFor}
+          onClose={() => setLocationsFor(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["parts"] })}
+        />
+      )}
+    </div>
+  );
+}
+
+function LocationsModal({ part, onClose, onSaved }: { part: Part; onClose: () => void; onSaved: () => void }) {
+  const [drafts, setDrafts] = useState<Record<number, string>>(
+    Object.fromEntries(part.stock_by_branch.map((s) => [s.branch_id, s.bin_location ?? ""]))
+  );
+  const [savingBranchId, setSavingBranchId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(branchId: number) {
+    setSavingBranchId(branchId);
+    setError(null);
+    try {
+      await api.put(`/inventory/parts/${part.id}/branch-stock/${branchId}`, {
+        bin_location: drafts[branchId]?.trim() || null,
+      });
+      onSaved();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? "Failed to update bin location.");
+    } finally {
+      setSavingBranchId(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Stock &amp; Bin Locations</h2>
+            <p className="text-xs text-gray-500">{part.part_number} — {part.description}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="flex flex-col gap-3 px-6 py-5">
+          {part.stock_by_branch.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-400">No stock recorded at any branch yet.</p>
+          ) : part.stock_by_branch.map((s) => (
+            <div key={s.branch_id} className="flex items-end gap-2 rounded-lg border border-gray-100 p-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{s.branch_name}</p>
+                <p className="text-xs text-gray-500">Qty on hand: {s.qty_on_hand}</p>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-700">
+                  <MapPin className="h-3 w-3" /> Bin location
+                </label>
+                <input
+                  value={drafts[s.branch_id] ?? ""}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [s.branch_id]: e.target.value }))}
+                  placeholder="e.g. A-3, FLOOR"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]"
+                />
+              </div>
+              <Button
+                size="sm"
+                loading={savingBranchId === s.branch_id}
+                onClick={() => save(s.branch_id)}
+              >
+                Save
+              </Button>
+            </div>
+          ))}
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-gray-100 px-6 py-4">
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -536,7 +649,7 @@ function KpiChip({
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-50">
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 13 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="h-4 animate-pulse rounded bg-gray-100" />
         </td>

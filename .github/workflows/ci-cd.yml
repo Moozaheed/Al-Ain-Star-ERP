@@ -154,6 +154,14 @@ jobs:
             cd $DEPLOY_PATH/erp-backend
             composer install --no-dev --optimize-autoloader --no-interaction
             php artisan migrate --force
+
+            # TEMPORARY — client demo data (see database/seeders/DemoDataSeeder.php).
+            # Safe to run every deploy: everything it creates uses firstOrCreate or
+            # an explicit existence check, so re-running never duplicates anything.
+            # Remove this line once the demo is over — the data itself is removed
+            # separately via `php artisan demo:cleanup`, not by deleting this step.
+            php artisan db:seed --class=DemoDataSeeder --force
+
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache

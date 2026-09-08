@@ -68,6 +68,7 @@ class ChartOfAccountsSeeder extends Seeder
         ['code' => '6400', 'name' => 'Marketing and Advertising', 'type' => AccountType::Expense, 'subtype' => 'operating_expense', 'is_system' => false],
         ['code' => '6500', 'name' => 'Bank Charges', 'type' => AccountType::Expense, 'subtype' => 'operating_expense', 'is_system' => false],
         ['code' => '6600', 'name' => 'Depreciation Expense', 'type' => AccountType::Expense, 'subtype' => 'operating_expense', 'is_system' => false],
+        ['code' => '6700', 'name' => 'Staff Expense Reimbursements', 'type' => AccountType::Expense, 'subtype' => 'operating_expense', 'is_system' => false],
     ];
 
     public function run(): void

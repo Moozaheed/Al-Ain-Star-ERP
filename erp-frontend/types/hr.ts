@@ -25,12 +25,36 @@ export interface EmployeeDocument {
   is_active: boolean;
 }
 
+export type ApprovalStatus = 'pending' | 'branch_approved' | 'approved' | 'rejected';
+
 export interface ExpenseClaim {
   id: number;
+  employee_id?: number;
+  employee_name?: string;
+  branch_id?: number;
+  branch_name?: string;
   description: string;
   amount: number;
   claim_date: string;
-  status: 'pending' | 'approved' | 'rejected' | 'paid';
+  status: ApprovalStatus | 'paid';
+  branch_approved_by_name?: string | null;
+  approved_by_name?: string | null;
+}
+
+export interface LeaveRequest {
+  id: number;
+  employee_id?: number;
+  employee_name?: string;
+  branch_id?: number;
+  branch_name?: string;
+  leave_type: 'annual' | 'sick' | 'unpaid';
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason: string | null;
+  status: ApprovalStatus;
+  branch_approved_by_name?: string | null;
+  approved_by_name?: string | null;
 }
 
 export interface SalesTarget {
@@ -111,6 +135,7 @@ export interface EmployeeProfile {
   branch_name: string | null;
   documents: EmployeeDocument[];
   expense_claims: ExpenseClaim[];
+  leave_requests: LeaveRequest[];
   sales_targets: SalesTarget[];
   salary_components: SalaryComponent[];
   payslips: Payslip[];

@@ -3,10 +3,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from "recharts";
+import type { TooltipValueType } from "recharts";
+import { Card, CardContent } from "@/components/ui/Card";
 import api from "@/lib/api";
 import { downloadCsv } from "@/lib/downloadCsv";
 import { useAuthStore } from "@/store/authStore";
+import { CHART_COLORS, CHART_GRID, CHART_TEXT } from "@/lib/chartColors";
 import type { BranchPerformanceRow } from "@/types/reporting";
 
 function formatAed(v: number) {
@@ -54,6 +59,27 @@ export function BranchPerformanceTab() {
           </button>
         )}
       </div>
+
+      {rows.length > 0 && (
+        <Card>
+          <CardContent>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Revenue vs Gross Profit by Branch</p>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rows} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid vertical={false} stroke={CHART_GRID} />
+                  <XAxis dataKey="branch_name" tick={{ fontSize: 11, fill: CHART_TEXT }} />
+                  <YAxis tick={{ fontSize: 11, fill: CHART_TEXT }} tickFormatter={(v) => formatAed(v)} width={70} />
+                  <Tooltip formatter={(v: TooltipValueType | undefined) => formatAed(Number(v))} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="revenue_ex_vat" name="Revenue" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gross_profit" name="Gross Profit" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <div className="overflow-x-auto">

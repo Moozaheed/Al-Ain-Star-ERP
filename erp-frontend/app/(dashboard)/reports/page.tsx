@@ -11,7 +11,8 @@ import { FinancialReportsTab } from "./_components/FinancialReportsTab";
 
 type Tab = "sales" | "stock" | "branch" | "financial";
 
-const SALES_ROLES = ["super_admin", "manager", "branch_manager", "accountant", "viewer"];
+// Narrowed on explicit user request: Branch Manager and above only.
+const SALES_ROLES = ["super_admin", "manager", "branch_manager"];
 const STOCK_ROLES = ["super_admin", "manager", "branch_manager", "warehouse_staff", "viewer"];
 const BRANCH_ROLES = ["super_admin", "manager", "branch_manager"];
 

@@ -25,4 +25,6 @@ final class AccountCode
     public const COGS = '5000';
     public const SALARIES_PAYABLE = '2210';
     public const SALARIES_EXPENSE = '6000';
+    public const ACCRUED_EXPENSES = '2200';
+    public const STAFF_EXPENSE_REIMBURSEMENTS = '6700';
 }

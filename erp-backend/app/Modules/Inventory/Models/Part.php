@@ -24,6 +24,7 @@ class Part extends Model
         'brand_id',
         'unit_id',
         'min_stock_qty',
+        'list_price',
         'is_active',
         'is_flagged',
         'flag_reason',
@@ -33,6 +34,7 @@ class Part extends Model
         'is_active'     => 'boolean',
         'is_flagged'    => 'boolean',
         'min_stock_qty' => 'integer',
+        'list_price'    => 'float',
     ];
 
     protected $appends = ['image_url'];

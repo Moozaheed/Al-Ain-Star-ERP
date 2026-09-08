@@ -32,7 +32,10 @@ class RolePermissionSeeder extends Seeder
         // sales_staff below — crm/business-rules.md: "Credit limit is set by
         // Manager or Super Admin only."
         'crm' => ['read', 'create', 'update', 'delete', 'manage_credit_limit'],
-        'hr' => ['read', 'create', 'update', 'delete', 'approve'],
+        // branch_approve is the first stage of the two-stage expense/leave
+        // approval chain (ADR-007) — Branch Manager only; 'approve' is the
+        // second (Admin) stage, Manager/Super Admin only.
+        'hr' => ['read', 'create', 'update', 'delete', 'approve', 'branch_approve'],
         'reporting' => ['read', 'export'],
         'notifications' => ['read', 'create', 'update', 'delete'],
         'ecommerce_api' => ['read', 'create', 'update', 'delete'],
@@ -99,7 +102,7 @@ class RolePermissionSeeder extends Seeder
             'purchasing.read', 'purchasing.create', 'purchasing.update', 'purchasing.approve',
             'accounting.read',
             'crm.read', 'crm.create', 'crm.update',
-            'hr.read',
+            'hr.read', 'hr.branch_approve',
             'reporting.read', 'reporting.export',
             'notifications.read', 'notifications.create',
             'ecommerce_api.read',

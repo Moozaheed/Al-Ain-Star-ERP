@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+} from "recharts";
+import type { TooltipValueType } from "recharts";
 import { cn } from "@/lib/cn";
 import { Card, CardContent } from "@/components/ui/Card";
 import api from "@/lib/api";
+import { CHART_COLORS, CHART_GRID, CHART_TEXT } from "@/lib/chartColors";
 import type {
   ProfitAndLossReport, BalanceSheetReport, VatReturnReport, GeneralLedgerReport, ChartOfAccount,
 } from "@/types/accounting";
@@ -73,6 +78,28 @@ function DateRangeBar({ from, to, onFrom, onTo }: { from: string; to: string; on
   );
 }
 
+function SummaryBarChart({ data }: { data: { label: string; value: number }[] }) {
+  return (
+    <Card>
+      <CardContent>
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ left: 0, right: 8 }}>
+              <CartesianGrid vertical={false} stroke={CHART_GRID} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART_TEXT }} interval={0} angle={-15} textAnchor="end" height={45} />
+              <YAxis tick={{ fontSize: 11, fill: CHART_TEXT }} tickFormatter={(v) => formatAed(v)} width={75} />
+              <Tooltip formatter={(v: TooltipValueType | undefined) => formatAed(Number(v))} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {data.map((d, i) => <Cell key={i} fill={d.value < 0 ? "#DC2626" : CHART_COLORS[i % CHART_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function LineRow({ label, amount, bold }: { label: string; amount: number; bold?: boolean }) {
   return (
     <div className={cn("flex items-center justify-between py-1.5 text-sm", bold && "font-semibold text-gray-900")}>
@@ -94,6 +121,17 @@ export function ProfitAndLossView() {
   return (
     <div className="flex flex-col gap-4">
       <DateRangeBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+
+      {data && (
+        <SummaryBarChart data={[
+          { label: "Revenue", value: data.total_revenue },
+          { label: "COGS", value: data.total_cost_of_goods_sold },
+          { label: "Gross Profit", value: data.gross_profit },
+          { label: "OpEx", value: data.total_operating_expenses },
+          { label: "Net Income", value: data.net_income },
+        ]} />
+      )}
+
       <Card>
         <CardContent>
           {isLoading || !data ? (
@@ -154,6 +192,12 @@ function BalanceSheetView() {
       {isLoading || !data ? (
         <Card><CardContent><p className="py-8 text-center text-sm text-gray-400">Loading...</p></CardContent></Card>
       ) : (
+        <>
+        <SummaryBarChart data={[
+          { label: "Assets", value: data.total_assets },
+          { label: "Liabilities", value: data.total_liabilities },
+          { label: "Equity", value: data.total_equity },
+        ]} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardContent>
@@ -194,6 +238,7 @@ function BalanceSheetView() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
@@ -211,6 +256,15 @@ export function VatReturnView() {
   return (
     <div className="flex flex-col gap-4">
       <DateRangeBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+
+      {data && (
+        <SummaryBarChart data={[
+          { label: "Output VAT", value: data.output_vat },
+          { label: "Input VAT Recoverable", value: data.input_vat_recoverable },
+          { label: "Net VAT Payable", value: data.net_vat_payable },
+        ]} />
+      )}
+
       <Card>
         <CardContent>
           {isLoading || !data ? (

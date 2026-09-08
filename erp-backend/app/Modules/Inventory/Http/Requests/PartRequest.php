@@ -26,6 +26,7 @@ class PartRequest extends FormRequest
             'brand_id'      => ['nullable', 'integer', 'exists:brands,id'],
             'unit_id'       => ['required', 'integer', 'exists:units,id'],
             'min_stock_qty' => ['required', 'integer', 'min:0'],
+            'list_price'    => ['nullable', 'numeric', 'min:0'],
             'is_active'     => ['boolean'],
         ];
     }
