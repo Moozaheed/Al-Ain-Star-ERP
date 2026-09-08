@@ -113,6 +113,7 @@ jobs:
   # ── Production Deployment (CD) ───────────────────────────────
   deploy-production:
     name: Deploy to Production
+    environment: Production
     needs: [backend-ci, frontend-ci]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
