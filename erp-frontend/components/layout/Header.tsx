@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Bell, Building2, ChevronDown } from "lucide-react";
+import { LogOut, Building2, ChevronDown } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useState } from "react";
 
 export function Header() {
@@ -45,10 +46,7 @@ export function Header() {
       {/* Right actions */}
       <div className="flex items-center gap-3">
         {/* Notification bell */}
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#E77B49]" />
-        </button>
+        <NotificationBell />
 
         {/* User menu */}
         <div className="flex items-center gap-2">

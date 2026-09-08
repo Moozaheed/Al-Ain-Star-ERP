@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Services;
 
+use App\Modules\Accounting\Services\LedgerPostingService;
 use App\Modules\Inventory\Models\BranchStock;
 use App\Modules\Sales\Models\CreditLimit;
 use App\Modules\Sales\Models\Invoice;
@@ -13,7 +14,10 @@ use InvalidArgumentException;
 
 class InvoiceService
 {
-    public function __construct(private readonly InvoiceNumberService $numbers) {}
+    public function __construct(
+        private readonly InvoiceNumberService $numbers,
+        private readonly LedgerPostingService $ledger,
+    ) {}
 
     public function create(array $data, int $userId, bool $canOverrideCreditLimit = false): Invoice
     {
@@ -157,6 +161,8 @@ class InvoiceService
                 'total'          => $total,
             ]);
 
+            $this->ledger->postSalesInvoice($invoice);
+
             return $invoice->load('items.part', 'customer');
         });
     }
@@ -239,6 +245,8 @@ class InvoiceService
             ]);
 
             AuditLogger::log('invoice.voided', $invoice, [], ['reason' => $reason]);
+
+            $this->ledger->reverseSalesInvoice($invoice, $reason, $userId);
 
             return $invoice;
         });

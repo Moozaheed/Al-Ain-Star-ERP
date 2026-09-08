@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Services;
 
+use App\Modules\Accounting\Services\LedgerPostingService;
 use App\Modules\Admin\Models\Branch;
 use App\Modules\Inventory\Models\BranchStock;
 use App\Modules\Inventory\Models\Part;
@@ -16,7 +17,10 @@ use InvalidArgumentException;
 
 class PurchaseInvoiceService
 {
-    public function __construct(private readonly PurchaseInvoiceNumberService $numbers) {}
+    public function __construct(
+        private readonly PurchaseInvoiceNumberService $numbers,
+        private readonly LedgerPostingService $ledger,
+    ) {}
 
     public function create(array $data, int $userId): PurchaseInvoice
     {
@@ -123,6 +127,8 @@ class PurchaseInvoiceService
                 'invoice_number' => $invoice->invoice_number,
                 'total'          => $total,
             ]);
+
+            $this->ledger->postPurchaseInvoice($invoice);
 
             return $invoice->load('items.part', 'supplier');
         });

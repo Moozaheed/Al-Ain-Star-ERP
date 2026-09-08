@@ -5,13 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Users, TrendingUp, UserCheck, UserX,
-  ChevronRight, ChevronLeft, ArrowRight,
+  ChevronRight, ChevronLeft, ArrowRight, Banknote,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import api from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import type { HrUser } from "@/types/hr";
+import { PayRunsTab } from "./_components/PayRunsTab";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin:     "Super Admin",
@@ -41,6 +43,8 @@ interface Paginated<T> { data: T[]; meta: { current_page: number; last_page: num
 
 export default function HRPage() {
   const router = useRouter();
+  const [tab, setTab] = useState<"people" | "payroll">("people");
+  const canViewPayroll = useAuthStore((s) => s.hasPermission("hr.read"));
   const [search, setSearch]       = useState("");
   const [activeFilter, setActive] = useState<string>("");
   const [page, setPage]           = useState(1);
@@ -67,82 +71,104 @@ export default function HRPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">HR — People</h1>
-        <p className="mt-0.5 text-sm text-gray-500">System users, roles, and sales activity</p>
+        <p className="mt-0.5 text-sm text-gray-500">System users, roles, sales activity, and payroll</p>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiChip label="Total Users" value={total} icon={Users} color="brand" />
-        <KpiChip label="Active" value={active} icon={UserCheck} color="green" />
-        <KpiChip label="Inactive" value={total - active} icon={UserX} color="red" />
-        <KpiChip
-          label="Total Sales"
-          value={formatAed(users.reduce((s, u) => s + (u.total_sales ?? 0), 0))}
-          icon={TrendingUp}
-          color="amber"
-          isText
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by name, email..."
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]"
-          />
-        </div>
-        <select
-          value={activeFilter}
-          onChange={(e) => { setActive(e.target.value); setPage(1); }}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]"
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
-        {(search || activeFilter) && (
-          <button onClick={() => { setSearch(""); setActive(""); setPage(1); }}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-            <X className="h-3.5 w-3.5" /> Clear
+      {/* Tabs */}
+      <div className="flex w-fit gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+        <button onClick={() => setTab("people")}
+          className={cn("flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
+            tab === "people" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+          <Users className="h-4 w-4" /> People
+        </button>
+        {canViewPayroll && (
+          <button onClick={() => setTab("payroll")}
+            className={cn("flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
+              tab === "payroll" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+            <Banknote className="h-4 w-4" /> Payroll
           </button>
         )}
       </div>
 
-      {/* User cards */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : users.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-sm text-gray-400">No users found.</CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {users.map((user) => (
-            <UserCard key={user.id} user={user} onClick={() => router.push(`/hr/${user.id}`)} />
-          ))}
-        </div>
+      {tab === "people" && (
+        <>
+          {/* KPI strip */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <KpiChip label="Total Users" value={total} icon={Users} color="brand" />
+            <KpiChip label="Active" value={active} icon={UserCheck} color="green" />
+            <KpiChip label="Inactive" value={total - active} icon={UserX} color="red" />
+            <KpiChip
+              label="Total Sales"
+              value={formatAed(users.reduce((s, u) => s + (u.total_sales ?? 0), 0))}
+              icon={TrendingUp}
+              color="amber"
+              isText
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Search by name, email..."
+                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]"
+              />
+            </div>
+            <select
+              value={activeFilter}
+              onChange={(e) => { setActive(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]"
+            >
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            {(search || activeFilter) && (
+              <button onClick={() => { setSearch(""); setActive(""); setPage(1); }}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* User cards */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : users.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center text-sm text-gray-400">No users found.</CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {users.map((user) => (
+                <UserCard key={user.id} user={user} onClick={() => router.push(`/hr/${user.id}`)} />
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {meta && meta.last_page > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">Page {meta.current_page} of {meta.last_page}</p>
+              <div className="flex gap-1">
+                <PageBtn onClick={() => setPage((p) => p - 1)} disabled={meta.current_page === 1}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </PageBtn>
+                <PageBtn onClick={() => setPage((p) => p + 1)} disabled={meta.current_page === meta.last_page}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </PageBtn>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Pagination */}
-      {meta && meta.last_page > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500">Page {meta.current_page} of {meta.last_page}</p>
-          <div className="flex gap-1">
-            <PageBtn onClick={() => setPage((p) => p - 1)} disabled={meta.current_page === 1}>
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </PageBtn>
-            <PageBtn onClick={() => setPage((p) => p + 1)} disabled={meta.current_page === meta.last_page}>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </PageBtn>
-          </div>
-        </div>
-      )}
+      {tab === "payroll" && canViewPayroll && <PayRunsTab />}
     </div>
   );
 }

@@ -17,7 +17,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->statefulApi();
+        // This app authenticates purely via Sanctum Bearer tokens
+        // (Authorization: Bearer <token>), never cookie-based SPA sessions —
+        // statefulApi() wrongly treated same-origin requests (e.g. Chrome
+        // sending Origin: http://<server-ip>) as stateful and required a
+        // CSRF cookie no stateless client sends, causing a 419 "CSRF token
+        // mismatch" on login. Excluding api/* from CSRF verification instead
+        // matches how this API is actually authenticated.
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+        ]);
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
