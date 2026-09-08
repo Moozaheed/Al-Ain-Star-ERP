@@ -35,10 +35,10 @@ export default function ProfilePage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">My Profile</h1>
-        <p className="mt-0.5 text-sm text-gray-500">Your account and employment information — view only</p>
+        <p className="mt-0.5 text-sm text-gray-500">Your account and employment information — submit expense claims and leave requests here</p>
       </div>
 
-      <UserDetailView data={data.data} />
+      <UserDetailView data={data.data} selfService />
     </div>
   );
 }

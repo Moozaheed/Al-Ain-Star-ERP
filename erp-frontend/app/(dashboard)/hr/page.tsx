@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Users, TrendingUp, UserCheck, UserX,
-  ChevronRight, ChevronLeft, ArrowRight, Banknote,
+  ChevronRight, ChevronLeft, ArrowRight, Banknote, ClipboardCheck,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -14,6 +14,7 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import type { HrUser } from "@/types/hr";
 import { PayRunsTab } from "./_components/PayRunsTab";
+import { ApprovalsTab } from "./_components/ApprovalsTab";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin:     "Super Admin",
@@ -43,8 +44,9 @@ interface Paginated<T> { data: T[]; meta: { current_page: number; last_page: num
 
 export default function HRPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"people" | "payroll">("people");
+  const [tab, setTab] = useState<"people" | "approvals" | "payroll">("people");
   const canViewPayroll = useAuthStore((s) => s.hasPermission("hr.read"));
+  const canViewApprovals = useAuthStore((s) => s.hasPermission("hr.branch_approve") || s.hasPermission("hr.approve"));
   const [search, setSearch]       = useState("");
   const [activeFilter, setActive] = useState<string>("");
   const [page, setPage]           = useState(1);
@@ -81,6 +83,13 @@ export default function HRPage() {
             tab === "people" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
           <Users className="h-4 w-4" /> People
         </button>
+        {canViewApprovals && (
+          <button onClick={() => setTab("approvals")}
+            className={cn("flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
+              tab === "approvals" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+            <ClipboardCheck className="h-4 w-4" /> Approvals
+          </button>
+        )}
         {canViewPayroll && (
           <button onClick={() => setTab("payroll")}
             className={cn("flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors",
@@ -168,6 +177,7 @@ export default function HRPage() {
         </>
       )}
 
+      {tab === "approvals" && canViewApprovals && <ApprovalsTab />}
       {tab === "payroll" && canViewPayroll && <PayRunsTab />}
     </div>
   );

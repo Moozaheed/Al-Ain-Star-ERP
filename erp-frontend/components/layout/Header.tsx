@@ -56,7 +56,7 @@ export function Header() {
           <div className="hidden sm:flex sm:flex-col sm:justify-center">
             <p className="text-sm font-medium leading-none text-gray-900">{user?.name}</p>
             <Badge variant="neutral" className="mt-1 w-fit text-[10px] px-1.5 py-0">
-              {roleLabel[user?.role_slug ?? ""] ?? user?.role_slug}
+              {roleLabel[user?.role_slug ?? user?.role ?? ""] ?? user?.role_slug ?? user?.role}
             </Badge>
           </div>
           <ChevronDown className="h-3 w-3 text-gray-400" />

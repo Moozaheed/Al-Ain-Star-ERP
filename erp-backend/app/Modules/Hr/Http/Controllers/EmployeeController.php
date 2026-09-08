@@ -2,8 +2,10 @@
 declare(strict_types=1);
 namespace App\Modules\Hr\Http\Controllers;
 
+use App\Modules\Accounting\Services\LedgerPostingService;
 use App\Modules\Admin\Models\User;
 use App\Modules\Hr\Http\Resources\EmployeeResource;
+use App\Modules\Hr\Http\Resources\ExpenseClaimResource;
 use App\Modules\Hr\Models\Employee;
 use App\Modules\Hr\Models\ExpenseClaim;
 use App\Modules\Notifications\Services\NotificationService;
@@ -16,8 +18,10 @@ use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
 {
-    public function __construct(private readonly NotificationService $notifications)
-    {
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly LedgerPostingService $ledger,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -183,7 +187,7 @@ class EmployeeController extends Controller
         $user = User::with(['branch', 'roles', 'permissions'])->findOrFail($userId);
 
         $employee = Employee::with([
-            'documents', 'expenseClaims', 'salesTargets',
+            'documents', 'expenseClaims', 'salesTargets', 'leaveRequests',
             'salaryComponents' => fn ($q) => $q->where('is_active', true),
             'payslips.lines', 'payslips.payRun',
         ])
@@ -227,12 +231,28 @@ class EmployeeController extends Controller
                 'created_at'  => $user->created_at?->toDateString(),
             ],
             'employee'        => $employee ? (new EmployeeResource($employee->loadMissing(
-                'documents', 'expenseClaims', 'salesTargets', 'salaryComponents', 'payslips.lines', 'payslips.payRun'
+                'documents', 'expenseClaims', 'salesTargets', 'leaveRequests', 'salaryComponents', 'payslips.lines', 'payslips.payRun'
             )))->toArray(request()) : null,
             'invoice_stats'   => $invoiceStats,
             'recent_invoices' => $recentInvoices,
             'monthly_stats'   => $monthlyStats,
         ];
+    }
+
+    // GET /hr/expenses — the approvals queue (and a general list). Branch
+    // Manager is forced to their own branch, mirroring PayRunController.
+    public function indexExpenses(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $branchScope = $user->hasAnyRole(['super_admin', 'manager']) ? $request->integer('branch_id') ?: null : $user->branch_id;
+
+        $claims = ExpenseClaim::with(['employee', 'branch', 'branchApprovedBy', 'approvedBy'])
+            ->when($branchScope, fn ($q) => $q->where('branch_id', $branchScope))
+            ->when($request->status, fn ($q) => $q->where('status', $request->status))
+            ->orderByDesc('created_at')
+            ->paginate((int) ($request->per_page ?? 25));
+
+        return ApiResponse::paginated($claims, ExpenseClaimResource::class);
     }
 
     // POST /hr/expenses — self-service: an employee files their own claim.
@@ -259,11 +279,11 @@ class EmployeeController extends Controller
             'status'      => 'pending',
         ]);
 
-        // notifications/business-rules.md event routing has no explicit
-        // "approval request" row — this is the one real approve/reject
-        // workflow in the codebase today, so it's the natural home for it.
+        // erp-context/decisions/ADR-007 — two-stage chain: only the Branch
+        // Manager of this employee's branch is notified at submission;
+        // Manager/Super Admin only enter the loop once branch-approved.
         $this->notifications->notifyRoles(
-            ['manager', 'branch_manager'],
+            ['branch_manager'],
             $employee->branch_id,
             'APPROVAL_REQUEST',
             "Expense claim from {$employee->name}",
@@ -274,20 +294,78 @@ class EmployeeController extends Controller
         return ApiResponse::success($claim, 'Expense claim submitted.', 201);
     }
 
-    // POST /hr/expenses/{id}/approve
-    public function approveExpense(Request $request, int $id): JsonResponse
+    // POST /hr/expenses/{id}/branch-approve — stage 1 of ADR-007's chain.
+    public function branchApproveExpense(Request $request, int $id): JsonResponse
     {
         $claim = ExpenseClaim::with('employee')->findOrFail($id);
         if ($claim->status !== 'pending') {
-            return ApiResponse::error('Only pending claims can be approved.', 422);
+            return ApiResponse::error('Only pending claims can be branch-approved.', 422);
+        }
+
+        $user = $request->user();
+        if ($user->hasRole('branch_manager') && $user->branch_id !== $claim->branch_id) {
+            return ApiResponse::error('You can only act on claims from your own branch.', 403);
         }
 
         $data = $request->validate(['action' => 'required|in:approve,reject']);
 
-        $claim->update([
-            'status'      => $data['action'] === 'approve' ? 'approved' : 'rejected',
-            'approved_by' => $request->user()->id,
-        ]);
+        if ($data['action'] === 'approve') {
+            $claim->update([
+                'status' => 'branch_approved',
+                'branch_approved_by' => $user->id,
+                'branch_approved_at' => now(),
+            ]);
+
+            $this->notifications->notifyRoles(
+                ['manager', 'super_admin'],
+                null,
+                'APPROVAL_REQUEST',
+                "Expense claim awaiting admin approval — {$claim->employee?->name}",
+                'AED '.number_format((float) $claim->amount, 2)." — {$claim->description}",
+                '/hr',
+            );
+        } else {
+            $claim->update(['status' => 'rejected']);
+        }
+
+        if ($claim->employee?->user_id !== null) {
+            $this->notifications->notify(
+                $claim->employee->user_id,
+                'APPROVAL_REQUEST',
+                $claim->status === 'branch_approved' ? 'Expense claim approved by your branch manager' : 'Expense claim rejected',
+                'AED '.number_format((float) $claim->amount, 2)." — {$claim->description}",
+                '/hr',
+            );
+        }
+
+        return ApiResponse::success(['status' => $claim->status], 'Expense claim updated.');
+    }
+
+    // POST /hr/expenses/{id}/approve — stage 2 (Admin) of ADR-007's chain.
+    public function approveExpense(Request $request, int $id): JsonResponse
+    {
+        $claim = ExpenseClaim::with('employee')->findOrFail($id);
+        if ($claim->status !== 'branch_approved') {
+            return ApiResponse::error('Only claims already approved by a Branch Manager can receive admin approval.', 422);
+        }
+
+        $data = $request->validate(['action' => 'required|in:approve,reject']);
+
+        if ($data['action'] === 'approve') {
+            $claim->update([
+                'status'      => 'approved',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+            ]);
+
+            $this->ledger->postExpenseClaimApproval($claim, $request->user()->id);
+        } else {
+            $claim->update([
+                'status'      => 'rejected',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+            ]);
+        }
 
         if ($claim->employee?->user_id !== null) {
             $this->notifications->notify(

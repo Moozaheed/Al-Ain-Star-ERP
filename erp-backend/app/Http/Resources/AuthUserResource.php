@@ -30,6 +30,7 @@ class AuthUserResource extends JsonResource
                 'code' => $this->branch->code,
             ] : null,
             'role' => $this->primaryRoleSlug(),
+            'role_slug' => $this->primaryRoleSlug(),
             'permissions' => $this->getAllPermissions()->pluck('name')->values()->all(),
         ];
     }

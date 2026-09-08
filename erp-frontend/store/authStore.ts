@@ -32,8 +32,8 @@ export const useAuthStore = create<AuthState>()(
       hasPermission: (permission) => {
         const { user } = get();
         if (!user) return false;
-        if (user.role_slug === "super_admin") return true;
-        return user.permissions.includes(permission);
+        if (user.role === "super_admin" || user.role_slug === "super_admin") return true;
+        return user.permissions?.includes(permission) ?? false;
       },
     }),
     { name: "erp_auth" }

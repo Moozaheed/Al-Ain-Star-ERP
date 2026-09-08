@@ -19,10 +19,12 @@ class ReportingController extends Controller
     /**
      * reporting/business-rules.md — Access Control. Sales reports are
      * company/branch aggregates, not "own performance" (that's the
-     * still-backlog TASK-053), so Sales Staff is deliberately excluded here;
-     * Warehouse Staff is scoped to stock reports only.
+     * still-backlog TASK-053), so Sales Staff is deliberately excluded here.
+     * Narrowed on explicit user request to Branch Manager and above only —
+     * Accountant and Viewer no longer see Sales Reports (they still see
+     * Stock reports, gated separately below).
      */
-    private const SALES_REPORT_ROLES = ['super_admin', 'manager', 'branch_manager', 'accountant', 'viewer'];
+    private const SALES_REPORT_ROLES = ['super_admin', 'manager', 'branch_manager'];
 
     private const STOCK_REPORT_ROLES = ['super_admin', 'manager', 'branch_manager', 'warehouse_staff', 'viewer'];
 

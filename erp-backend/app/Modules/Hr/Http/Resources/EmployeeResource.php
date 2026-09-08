@@ -54,6 +54,21 @@ class EmployeeResource extends JsonResource
                     'amount'      => $e->amount,
                     'claim_date'  => $e->claim_date->toDateString(),
                     'status'      => $e->status,
+                    'branch_approved_by_name' => $e->branchApprovedBy?->name,
+                    'approved_by_name' => $e->approvedBy?->name,
+                ])
+            ),
+            'leave_requests'  => $this->whenLoaded('leaveRequests', fn () =>
+                $this->leaveRequests->map(fn ($l) => [
+                    'id'         => $l->id,
+                    'leave_type' => $l->leave_type,
+                    'start_date' => $l->start_date->toDateString(),
+                    'end_date'   => $l->end_date->toDateString(),
+                    'days'       => $l->days,
+                    'reason'     => $l->reason,
+                    'status'     => $l->status,
+                    'branch_approved_by_name' => $l->branchApprovedBy?->name,
+                    'approved_by_name' => $l->approvedBy?->name,
                 ])
             ),
             'sales_targets'   => $this->whenLoaded('salesTargets', fn () =>

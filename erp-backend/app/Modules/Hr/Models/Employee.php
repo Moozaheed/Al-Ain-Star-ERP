@@ -33,4 +33,5 @@ class Employee extends Model
     public function salesTargets(): HasMany { return $this->hasMany(SalesTarget::class)->orderByDesc('period_year')->orderByDesc('period_month'); }
     public function salaryComponents(): HasMany { return $this->hasMany(SalaryComponent::class); }
     public function payslips(): HasMany { return $this->hasMany(Payslip::class)->orderByDesc('created_at'); }
+    public function leaveRequests(): HasMany { return $this->hasMany(LeaveRequest::class)->orderByDesc('created_at'); }
 }

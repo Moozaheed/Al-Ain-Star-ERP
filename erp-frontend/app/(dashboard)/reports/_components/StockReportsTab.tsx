@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Search } from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+} from "recharts";
+import type { TooltipValueType } from "recharts";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import api from "@/lib/api";
 import { downloadCsv } from "@/lib/downloadCsv";
 import { useAuthStore } from "@/store/authStore";
+import { CHART_COLORS, CHART_GRID, CHART_TEXT } from "@/lib/chartColors";
 import type { AgeBucket, StockAgeingReport, StockBalanceReport } from "@/types/reporting";
 
 function formatAed(v: number) {
@@ -59,6 +64,15 @@ function StockBalanceView() {
 
   const rows = data?.rows ?? [];
 
+  const byCategory = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const r of data?.rows ?? []) {
+      const key = r.category_name ?? "Uncategorized";
+      totals.set(key, (totals.get(key) ?? 0) + r.value);
+    }
+    return Array.from(totals, ([category, value]) => ({ category, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+  }, [data]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -85,6 +99,27 @@ function StockBalanceView() {
           </button>
         )}
       </div>
+
+      {byCategory.length > 0 && (
+        <Card>
+          <CardContent>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Stock Value by Category</p>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={byCategory} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid vertical={false} stroke={CHART_GRID} />
+                  <XAxis dataKey="category" tick={{ fontSize: 11, fill: CHART_TEXT }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 11, fill: CHART_TEXT }} tickFormatter={(v) => formatAed(v)} width={70} />
+                  <Tooltip formatter={(v: TooltipValueType | undefined) => formatAed(Number(v))} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {byCategory.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <div className="overflow-x-auto">
@@ -144,6 +179,7 @@ function StockAgeingView() {
 
   const rows = data?.rows ?? [];
   const buckets: AgeBucket[] = ["days_0_30", "days_31_60", "days_61_90", "days_91_180", "days_180_plus"];
+  const bucketChartData = buckets.map((b) => ({ bucket: BUCKET_LABEL[b], value: data?.bucket_totals[b] ?? 0, isRisk: b === "days_180_plus" }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -159,6 +195,27 @@ function StockAgeingView() {
           </Card>
         ))}
       </div>
+
+      {data && (
+        <Card>
+          <CardContent>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Value at Risk by Age</p>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bucketChartData} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid vertical={false} stroke={CHART_GRID} />
+                  <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: CHART_TEXT }} />
+                  <YAxis tick={{ fontSize: 11, fill: CHART_TEXT }} tickFormatter={(v) => formatAed(v)} width={70} />
+                  <Tooltip formatter={(v: TooltipValueType | undefined) => formatAed(Number(v))} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {bucketChartData.map((d, i) => <Cell key={i} fill={d.isRisk ? "#DC2626" : CHART_COLORS[0]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-end gap-3">
         <div>

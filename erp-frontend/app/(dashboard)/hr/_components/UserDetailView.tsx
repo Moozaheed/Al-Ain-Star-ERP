@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  User, Receipt, FileText, Wallet, Banknote, Plus, Trash2,
+  User, Receipt, FileText, Wallet, Banknote, Plus, Trash2, CalendarDays,
   Target, AlertTriangle, CheckCircle, XCircle,
   Phone, Mail, MapPin, Calendar, Building2, Shield,
 } from "lucide-react";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
 import api from "@/lib/api";
 import type { UserDetail } from "@/types/hr";
 
-type Tab = "overview" | "invoices" | "documents" | "expenses" | "targets" | "payroll";
+type Tab = "overview" | "invoices" | "documents" | "expenses" | "leave" | "targets" | "payroll";
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -37,11 +37,20 @@ const DOC_LABEL: Record<string, string> = {
   other:           "Other",
 };
 
-const EXPENSE_STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+const APPROVAL_STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral" | "default"> = {
   approved: "success",
+  branch_approved: "default",
   pending:  "warning",
   rejected: "danger",
   paid:     "success",
+};
+
+const APPROVAL_STATUS_LABEL: Record<string, string> = {
+  approved: "Approved",
+  branch_approved: "Awaiting Admin",
+  pending: "Awaiting Branch Manager",
+  rejected: "Rejected",
+  paid: "Paid",
 };
 
 const INVOICE_STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral" | "default"> = {
@@ -56,7 +65,7 @@ function formatAed(v: number) {
   return new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED", minimumFractionDigits: 2 }).format(v);
 }
 
-export function UserDetailView({ data, editable = false }: { data: UserDetail; editable?: boolean }) {
+export function UserDetailView({ data, editable = false, selfService = false }: { data: UserDetail; editable?: boolean; selfService?: boolean }) {
   const [tab, setTab] = useState<Tab>("overview");
   const { user, employee, invoice_stats, recent_invoices, monthly_stats } = data;
   const initials = user.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -66,6 +75,7 @@ export function UserDetailView({ data, editable = false }: { data: UserDetail; e
     { key: "invoices",  label: "Invoices",  icon: Receipt, count: invoice_stats?.total_invoices },
     { key: "documents", label: "Documents", icon: FileText, count: employee?.documents?.length },
     { key: "expenses",  label: "Expenses",  icon: Wallet, count: employee?.expense_claims?.length },
+    { key: "leave",     label: "Leave",     icon: CalendarDays, count: employee?.leave_requests?.length },
     { key: "targets",   label: "Targets",   icon: Target, count: employee?.sales_targets?.length },
     { key: "payroll",   label: "Payroll",   icon: Banknote, count: employee?.payslips?.length },
   ];
@@ -349,37 +359,12 @@ export function UserDetailView({ data, editable = false }: { data: UserDetail; e
         </Card>
       )}
 
-      {tab === "expenses" && (
-        <Card>
-          <CardHeader><CardTitle>Expense Claims</CardTitle></CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {["Date","Description","Amount","Status"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 first:px-6">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {!employee?.expense_claims?.length ? (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center text-sm text-gray-400">No expense claims.</td></tr>
-                ) : employee.expense_claims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-gray-50/50">
-                    <td className="px-6 py-3 text-gray-600">{claim.claim_date}</td>
-                    <td className="max-w-[300px] px-4 py-3 truncate text-gray-900">{claim.description}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{formatAed(claim.amount)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={EXPENSE_STATUS_VARIANT[claim.status] ?? "neutral"} className="capitalize">
-                        {claim.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+      {tab === "expenses" && employee && (
+        <ExpenseClaimsSection employee={employee} selfService={selfService} />
+      )}
+
+      {tab === "leave" && employee && (
+        <LeaveRequestsSection employee={employee} selfService={selfService} />
       )}
 
       {tab === "targets" && (
@@ -434,6 +419,219 @@ export function UserDetailView({ data, editable = false }: { data: UserDetail; e
       {tab === "payroll" && employee && (
         <PayrollTab employee={employee} editable={editable} />
       )}
+    </div>
+  );
+}
+
+function ExpenseClaimsSection({ employee, selfService }: { employee: NonNullable<UserDetail["employee"]>; selfService: boolean }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [claimDate, setClaimDate] = useState(new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState<string | null>(null);
+
+  const submitMutation = useMutation({
+    mutationFn: () => api.post("/hr/expenses", { description, amount: Number(amount), claim_date: claimDate }),
+    onSuccess: () => {
+      setAdding(false);
+      setDescription("");
+      setAmount("");
+      qc.invalidateQueries({ queryKey: ["hr-user"] });
+      qc.invalidateQueries({ queryKey: ["my-profile"] });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? "Failed to submit expense claim.");
+    },
+  });
+
+  const claims = employee.expense_claims ?? [];
+
+  return (
+    <div className="flex flex-col gap-4">
+      {selfService && (
+        <Card>
+          <CardContent>
+            {!adding ? (
+              <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-sm font-medium text-[#95271D] hover:underline">
+                <Plus className="h-4 w-4" /> New Expense Claim
+              </button>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Description *</label>
+                    <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Fuel for delivery run"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Amount (AED) *</label>
+                    <input type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                  </div>
+                </div>
+                <div className="w-40">
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Claim Date *</label>
+                  <input type="date" value={claimDate} onChange={(e) => setClaimDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                </div>
+                <p className="text-xs text-gray-400">Goes to your Branch Manager first, then to Admin for final approval.</p>
+                {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setAdding(false); setError(null); }}>Cancel</Button>
+                  <Button size="sm" disabled={!description.trim() || !amount} loading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>Submit</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader><CardTitle>Expense Claims</CardTitle></CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {["Date","Description","Amount","Status","Branch Manager","Admin"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 first:px-6">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {!claims.length ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">No expense claims.</td></tr>
+              ) : claims.map((claim) => (
+                <tr key={claim.id} className="hover:bg-gray-50/50">
+                  <td className="px-6 py-3 text-gray-600">{claim.claim_date}</td>
+                  <td className="max-w-[240px] px-4 py-3 truncate text-gray-900">{claim.description}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-900">{formatAed(claim.amount)}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={APPROVAL_STATUS_VARIANT[claim.status] ?? "neutral"}>
+                      {APPROVAL_STATUS_LABEL[claim.status] ?? claim.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{claim.branch_approved_by_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{claim.approved_by_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const LEAVE_TYPE_LABEL: Record<string, string> = { annual: "Annual", sick: "Sick", unpaid: "Unpaid" };
+
+function LeaveRequestsSection({ employee, selfService }: { employee: NonNullable<UserDetail["employee"]>; selfService: boolean }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [leaveType, setLeaveType] = useState<"annual" | "sick" | "unpaid">("annual");
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const submitMutation = useMutation({
+    mutationFn: () => api.post("/hr/leave", { leave_type: leaveType, start_date: startDate, end_date: endDate, reason: reason || undefined }),
+    onSuccess: () => {
+      setAdding(false);
+      setReason("");
+      qc.invalidateQueries({ queryKey: ["hr-user"] });
+      qc.invalidateQueries({ queryKey: ["my-profile"] });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? "Failed to submit leave request.");
+    },
+  });
+
+  const requests = employee.leave_requests ?? [];
+
+  return (
+    <div className="flex flex-col gap-4">
+      {selfService && (
+        <Card>
+          <CardContent>
+            {!adding ? (
+              <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-sm font-medium text-[#95271D] hover:underline">
+                <Plus className="h-4 w-4" /> Apply for Leave
+              </button>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Leave Type *</label>
+                    <select value={leaveType} onChange={(e) => setLeaveType(e.target.value as typeof leaveType)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]">
+                      <option value="annual">Annual</option>
+                      <option value="sick">Sick</option>
+                      <option value="unpaid">Unpaid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">Start Date *</label>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">End Date *</label>
+                    <input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Reason</label>
+                  <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="Optional"
+                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#95271D] focus:outline-none focus:ring-1 focus:ring-[#95271D]" />
+                </div>
+                <p className="text-xs text-gray-400">Goes to your Branch Manager first, then to Admin for final approval.</p>
+                {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setAdding(false); setError(null); }}>Cancel</Button>
+                  <Button size="sm" disabled={endDate < startDate} loading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>Submit</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader><CardTitle>Leave Requests</CardTitle></CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {["Type","Dates","Days","Status","Branch Manager","Admin"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 first:px-6">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {!requests.length ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">No leave requests.</td></tr>
+              ) : requests.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50/50">
+                  <td className="px-6 py-3 text-gray-900">{LEAVE_TYPE_LABEL[r.leave_type] ?? r.leave_type}</td>
+                  <td className="px-4 py-3 text-gray-600">{r.start_date} → {r.end_date}</td>
+                  <td className="px-4 py-3 text-gray-900">{r.days}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={APPROVAL_STATUS_VARIANT[r.status] ?? "neutral"}>
+                      {APPROVAL_STATUS_LABEL[r.status] ?? r.status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{r.branch_approved_by_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{r.approved_by_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

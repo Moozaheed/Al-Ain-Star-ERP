@@ -16,7 +16,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 && typeof window !== "undefined") {
+    const isLoginRequest = err.config?.url?.includes("/auth/login");
+    const isAlreadyOnLogin = typeof window !== "undefined" && window.location.pathname.startsWith("/login");
+
+    if (err.response?.status === 401 && typeof window !== "undefined" && !isLoginRequest && !isAlreadyOnLogin) {
       localStorage.removeItem("erp_token");
       window.location.href = "/login";
     }

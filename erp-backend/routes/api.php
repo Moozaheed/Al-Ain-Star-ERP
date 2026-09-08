@@ -119,6 +119,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('/inventory/parts/{id}', [App\Modules\Inventory\Http\Controllers\PartController::class, 'update'])->whereNumber('id')->middleware('permission:inventory.update,sanctum');
     Route::delete('/inventory/parts/{id}', [App\Modules\Inventory\Http\Controllers\PartController::class, 'destroy'])->whereNumber('id')->middleware('permission:inventory.delete,sanctum');
     Route::post('/inventory/parts/{id}/image', [App\Modules\Inventory\Http\Controllers\PartController::class, 'uploadImage'])->whereNumber('id')->middleware('permission:inventory.update,sanctum');
+    Route::put('/inventory/parts/{id}/branch-stock/{branchId}', [App\Modules\Inventory\Http\Controllers\PartController::class, 'updateBinLocation'])->whereNumber('id')->whereNumber('branchId')->middleware('permission:inventory.update,sanctum');
 
     // Inventory - Categories, Brands, Units (settings master data)
     Route::get('/inventory/categories', [App\Modules\Inventory\Http\Controllers\CategoryController::class, 'index'])->middleware('permission:inventory.read,sanctum');
@@ -173,11 +174,20 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/hr/employees/{id}', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'show'])->whereNumber('id')->middleware('permission:hr.read,sanctum');
     Route::put('/hr/employees/{id}', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'update'])->whereNumber('id')->middleware('permission:hr.update,sanctum');
 
-    // HR - Expense claims. Submission is self-service (any authenticated
-    // employee files their own claim) — not gated by an hr.* permission,
-    // which governs managing OTHER people's HR records.
+    // HR - Expense claims (erp-context/decisions/ADR-007 — two-stage chain).
+    // Submission is self-service (any authenticated employee files their own
+    // claim) — not gated by an hr.* permission, which governs managing
+    // OTHER people's HR records.
+    Route::get('/hr/expenses', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'indexExpenses'])->middleware('permission:hr.read,sanctum');
     Route::post('/hr/expenses', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'storeExpenseClaim']);
+    Route::post('/hr/expenses/{id}/branch-approve', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'branchApproveExpense'])->whereNumber('id')->middleware('permission:hr.branch_approve,sanctum');
     Route::post('/hr/expenses/{id}/approve', [App\Modules\Hr\Http\Controllers\EmployeeController::class, 'approveExpense'])->whereNumber('id')->middleware('permission:hr.approve,sanctum');
+
+    // HR - Leave requests (erp-context/decisions/ADR-007 — same chain).
+    Route::get('/hr/leave', [App\Modules\Hr\Http\Controllers\LeaveRequestController::class, 'index'])->middleware('permission:hr.read,sanctum');
+    Route::post('/hr/leave', [App\Modules\Hr\Http\Controllers\LeaveRequestController::class, 'store']);
+    Route::post('/hr/leave/{id}/branch-approve', [App\Modules\Hr\Http\Controllers\LeaveRequestController::class, 'branchApprove'])->whereNumber('id')->middleware('permission:hr.branch_approve,sanctum');
+    Route::post('/hr/leave/{id}/approve', [App\Modules\Hr\Http\Controllers\LeaveRequestController::class, 'approve'])->whereNumber('id')->middleware('permission:hr.approve,sanctum');
 
     // HR - Payroll (erp-context/decisions/ADR-006)
     Route::get('/hr/employees/{id}/salary-components', [App\Modules\Hr\Http\Controllers\SalaryComponentController::class, 'index'])->whereNumber('id')->middleware('permission:hr.read,sanctum');

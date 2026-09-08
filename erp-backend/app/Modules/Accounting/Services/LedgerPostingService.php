@@ -9,6 +9,7 @@ use App\Modules\Accounting\Models\ChartOfAccount;
 use App\Modules\Accounting\Models\Cheque;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Support\AccountCode;
+use App\Modules\Hr\Models\ExpenseClaim;
 use App\Modules\Hr\Models\PayRun;
 use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchasePayment;
@@ -275,6 +276,27 @@ class LedgerPostingService
             'lines' => [
                 ['account_id' => $this->accountId(AccountCode::SALARIES_PAYABLE), 'debit' => $payRun->total_net_pay, 'credit' => 0],
                 ['account_id' => $this->accountId(AccountCode::BANK), 'debit' => 0, 'credit' => $payRun->total_net_pay],
+            ],
+        ]);
+    }
+
+    /**
+     * erp-context/decisions/ADR-007 — posted on final (Admin) approval, not
+     * on submission or branch approval. No "paid" settlement entry exists
+     * yet for expense claims (unlike payroll's approve/pay pair).
+     */
+    public function postExpenseClaimApproval(ExpenseClaim $claim, int $userId): void
+    {
+        $this->journal->post([
+            'branch_id' => $claim->branch_id,
+            'entry_date' => now()->toDateString(),
+            'description' => "Expense claim #{$claim->id} approved — {$claim->description}",
+            'source_type' => JournalSourceType::Expense,
+            'source_id' => $claim->id,
+            'posted_by' => $userId,
+            'lines' => [
+                ['account_id' => $this->accountId(AccountCode::STAFF_EXPENSE_REIMBURSEMENTS), 'debit' => $claim->amount, 'credit' => 0],
+                ['account_id' => $this->accountId(AccountCode::ACCRUED_EXPENSES), 'debit' => 0, 'credit' => $claim->amount],
             ],
         ]);
     }
