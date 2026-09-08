@@ -147,7 +147,8 @@ jobs:
             cd $DEPLOY_PATH
 
             echo "Fetching latest changes from main..."
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "Updating backend..."
             cd $DEPLOY_PATH/erp-backend
@@ -156,7 +157,9 @@ jobs:
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-            php artisan queue:restart
+            php artisan queue:restart || true
+            chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+            chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
             echo "Updating frontend..."
             cd $DEPLOY_PATH/erp-frontend
