@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Services;
 
+use App\Modules\Accounting\Services\LedgerPostingService;
 use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchaseReturn;
 use App\Support\AuditLogger;
@@ -12,7 +13,10 @@ use InvalidArgumentException;
 
 class PurchaseReturnService
 {
-    public function __construct(private readonly PurchaseReturnNumberService $numbers) {}
+    public function __construct(
+        private readonly PurchaseReturnNumberService $numbers,
+        private readonly LedgerPostingService $ledger,
+    ) {}
 
     /**
      * @param  array{purchase_invoice_id:int, reason:?string, return_date:string, items:array<int,array{purchase_invoice_item_id:int,qty:int}>}  $data
@@ -123,10 +127,21 @@ class PurchaseReturnService
                     ->decrement('qty_on_hand', $item['qty']);
             }
 
+            // A return reduces what's actually still owed to the supplier.
+            // Floored at 0 — if the invoice was already paid in full, the
+            // return creates a credit owed back to us, which isn't
+            // representable by amount_due (a receivable-from-supplier
+            // concept this schema doesn't have yet) and is left as a
+            // known gap rather than going negative.
+            $newAmountDue = max(0.0, (float) $invoice->amount_due - (float) $total);
+            $invoice->update(['amount_due' => $newAmountDue]);
+
             AuditLogger::log('purchase_return.created', $return, [], [
                 'debit_note_number' => $return->debit_note_number,
                 'total'             => $total,
             ]);
+
+            $this->ledger->postPurchaseReturn($return);
 
             return $return->load('items.part', 'supplier', 'purchaseInvoice');
         });

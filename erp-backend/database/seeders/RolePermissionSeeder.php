@@ -28,7 +28,10 @@ class RolePermissionSeeder extends Seeder
         'sales' => ['read', 'create', 'update', 'delete', 'approve', 'override_price', 'refund'],
         'purchasing' => ['read', 'create', 'update', 'delete', 'approve'],
         'accounting' => ['read', 'create', 'update', 'delete', 'approve', 'post_journal', 'reverse_journal'],
-        'crm' => ['read', 'create', 'update', 'delete'],
+        // manage_credit_limit is deliberately not granted to branch_manager or
+        // sales_staff below — crm/business-rules.md: "Credit limit is set by
+        // Manager or Super Admin only."
+        'crm' => ['read', 'create', 'update', 'delete', 'manage_credit_limit'],
         'hr' => ['read', 'create', 'update', 'delete', 'approve'],
         'reporting' => ['read', 'export'],
         'notifications' => ['read', 'create', 'update', 'delete'],
@@ -137,6 +140,9 @@ class RolePermissionSeeder extends Seeder
             'accounting.approve', 'accounting.post_journal', 'accounting.reverse_journal',
             'sales.read',
             'purchasing.read', 'purchasing.approve',
+            // crm/business-rules.md — Customer Statement: "Available to
+            // Accountant, Manager, Branch Manager".
+            'crm.read',
             'reporting.read', 'reporting.export',
             'audit_logs.read',
             'notifications.read',

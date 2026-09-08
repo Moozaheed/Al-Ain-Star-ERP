@@ -14,6 +14,7 @@ enum JournalSourceType: string
     case Expense = 'expense';
     case Manual = 'manual';
     case Reversal = 'reversal';
+    case Payroll = 'payroll';
 
     /**
      * @return array<int, string>

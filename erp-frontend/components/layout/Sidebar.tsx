@@ -18,6 +18,7 @@ import {
   Sliders,
   ChevronLeft,
   Package,
+  CircleUserRound,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/store/authStore";
@@ -31,6 +32,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard",     href: "/dashboard",    icon: LayoutDashboard },
+  { label: "My Profile",    href: "/profile",      icon: CircleUserRound },
   { label: "Inventory",     href: "/inventory",    icon: Boxes,          permission: "inventory.read" },
   { label: "Sales",         href: "/sales",        icon: Receipt,        permission: "sales.read" },
   { label: "Purchasing",    href: "/purchasing",   icon: ShoppingCart,   permission: "purchasing.read" },

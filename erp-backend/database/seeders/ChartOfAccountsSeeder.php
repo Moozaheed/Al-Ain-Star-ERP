@@ -21,6 +21,7 @@ class ChartOfAccountsSeeder extends Seeder
         ['code' => '1010', 'name' => 'Petty Cash', 'type' => AccountType::Asset, 'subtype' => 'current_asset', 'is_system' => true],
         ['code' => '1020', 'name' => 'Bank - Current Account (AED)', 'type' => AccountType::Asset, 'subtype' => 'bank', 'is_system' => true],
         ['code' => '1030', 'name' => 'Bank - Savings Account (AED)', 'type' => AccountType::Asset, 'subtype' => 'bank', 'is_system' => false],
+        ['code' => '1040', 'name' => 'Cheques Receivable (In Hand)', 'type' => AccountType::Asset, 'subtype' => 'cheque_clearing', 'is_system' => true],
         ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => AccountType::Asset, 'subtype' => 'receivable', 'is_system' => true],
         ['code' => '1110', 'name' => 'Allowance for Doubtful Accounts', 'type' => AccountType::Asset, 'subtype' => 'receivable', 'is_system' => false],
         ['code' => '1200', 'name' => 'Inventory - Auto Parts', 'type' => AccountType::Asset, 'subtype' => 'inventory', 'is_system' => true],
@@ -36,6 +37,7 @@ class ChartOfAccountsSeeder extends Seeder
 
         // Current Liabilities (2000-2499)
         ['code' => '2000', 'name' => 'Accounts Payable', 'type' => AccountType::Liability, 'subtype' => 'payable', 'is_system' => true],
+        ['code' => '2050', 'name' => 'Cheques Payable (Issued)', 'type' => AccountType::Liability, 'subtype' => 'cheque_clearing', 'is_system' => true],
         ['code' => '2100', 'name' => 'VAT Output (Payable)', 'type' => AccountType::Liability, 'subtype' => 'tax', 'is_system' => true],
         ['code' => '2110', 'name' => 'VAT Payable to FTA', 'type' => AccountType::Liability, 'subtype' => 'tax', 'is_system' => true],
         ['code' => '2200', 'name' => 'Accrued Expenses', 'type' => AccountType::Liability, 'subtype' => 'accrued', 'is_system' => false],

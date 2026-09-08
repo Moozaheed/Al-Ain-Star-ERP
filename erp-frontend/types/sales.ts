@@ -86,6 +86,19 @@ export interface Quotation {
   items: QuotationItem[];
 }
 
+export interface InvoicePayment {
+  id: number;
+  invoice_id: number;
+  invoice_number: string | null;
+  amount: number;
+  payment_mode: "cash" | "card" | "bank_transfer" | "cheque";
+  payment_date: string;
+  reference: string | null;
+  received_by_name: string | null;
+  notes: string | null;
+  invoice_amount_due: number | null;
+}
+
 export interface LineItemDraft {
   part_id: number | null;
   part_number: string;

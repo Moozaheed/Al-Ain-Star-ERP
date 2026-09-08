@@ -68,6 +68,18 @@ export interface PurchaseReturnItem {
   line_total: number;
 }
 
+export interface PurchasePayment {
+  id: number;
+  purchase_invoice_id: number;
+  invoice_number: string | null;
+  amount: number;
+  payment_mode: "cash" | "bank_transfer" | "cheque";
+  payment_date: string;
+  reference: string | null;
+  paid_by_name: string | null;
+  invoice_amount_due: number | null;
+}
+
 export interface PurchaseReturn {
   id: number;
   debit_note_number: string;

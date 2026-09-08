@@ -22,4 +22,5 @@ class Customer extends Model
     public function invoices(): HasMany { return $this->hasMany(Invoice::class); }
     public function quotations(): HasMany { return $this->hasMany(Quotation::class); }
     public function creditLimits(): HasMany { return $this->hasMany(CreditLimit::class); }
+    public function notes(): HasMany { return $this->hasMany(CustomerNote::class); }
 }

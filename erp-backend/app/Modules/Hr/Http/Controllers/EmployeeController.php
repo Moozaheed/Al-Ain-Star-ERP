@@ -6,6 +6,7 @@ use App\Modules\Admin\Models\User;
 use App\Modules\Hr\Http\Resources\EmployeeResource;
 use App\Modules\Hr\Models\Employee;
 use App\Modules\Hr\Models\ExpenseClaim;
+use App\Modules\Notifications\Services\NotificationService;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly NotificationService $notifications)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $employees = Employee::with(['user', 'branch'])
@@ -163,9 +168,25 @@ class EmployeeController extends Controller
     // GET /hr/users/{id} — single user detail with all related data
     public function userDetail(int $userId): JsonResponse
     {
+        return ApiResponse::success($this->buildUserDetail($userId));
+    }
+
+    // GET /profile — the current user's own detail, read-only, no hr.read
+    // needed: this is "view my own information", not managing someone else's.
+    public function me(Request $request): JsonResponse
+    {
+        return ApiResponse::success($this->buildUserDetail($request->user()->id));
+    }
+
+    private function buildUserDetail(int $userId): array
+    {
         $user = User::with(['branch', 'roles', 'permissions'])->findOrFail($userId);
 
-        $employee = Employee::with(['documents', 'expenseClaims', 'salesTargets'])
+        $employee = Employee::with([
+            'documents', 'expenseClaims', 'salesTargets',
+            'salaryComponents' => fn ($q) => $q->where('is_active', true),
+            'payslips.lines', 'payslips.payRun',
+        ])
             ->where('user_id', $userId)
             ->first();
 
@@ -192,7 +213,7 @@ class EmployeeController extends Controller
             ->orderBy('month')
             ->get();
 
-        return ApiResponse::success([
+        return [
             'user' => [
                 'id'          => $user->id,
                 'name'        => $user->name,
@@ -205,17 +226,58 @@ class EmployeeController extends Controller
                 'branch_name' => $user->branch?->name,
                 'created_at'  => $user->created_at?->toDateString(),
             ],
-            'employee'        => $employee ? (new EmployeeResource($employee->loadMissing('documents', 'expenseClaims', 'salesTargets')))->toArray(request()) : null,
+            'employee'        => $employee ? (new EmployeeResource($employee->loadMissing(
+                'documents', 'expenseClaims', 'salesTargets', 'salaryComponents', 'payslips.lines', 'payslips.payRun'
+            )))->toArray(request()) : null,
             'invoice_stats'   => $invoiceStats,
             'recent_invoices' => $recentInvoices,
             'monthly_stats'   => $monthlyStats,
+        ];
+    }
+
+    // POST /hr/expenses — self-service: an employee files their own claim.
+    // Not gated by an hr.* permission (those govern managing OTHER people's
+    // HR records) — any authenticated employee may submit their own claim.
+    public function storeExpenseClaim(Request $request): JsonResponse
+    {
+        $employee = Employee::where('user_id', $request->user()->id)->first();
+        if ($employee === null) {
+            return ApiResponse::error('No employee record is linked to your account.', 422);
+        }
+
+        $data = $request->validate([
+            'description'  => 'required|string|max:500',
+            'amount'       => 'required|numeric|min:0.01',
+            'claim_date'   => 'required|date',
+            'receipt_path' => 'nullable|string|max:500',
         ]);
+
+        $claim = ExpenseClaim::create([
+            ...$data,
+            'employee_id' => $employee->id,
+            'branch_id'   => $employee->branch_id,
+            'status'      => 'pending',
+        ]);
+
+        // notifications/business-rules.md event routing has no explicit
+        // "approval request" row — this is the one real approve/reject
+        // workflow in the codebase today, so it's the natural home for it.
+        $this->notifications->notifyRoles(
+            ['manager', 'branch_manager'],
+            $employee->branch_id,
+            'APPROVAL_REQUEST',
+            "Expense claim from {$employee->name}",
+            'AED '.number_format((float) $claim->amount, 2)." — {$claim->description}",
+            '/hr',
+        );
+
+        return ApiResponse::success($claim, 'Expense claim submitted.', 201);
     }
 
     // POST /hr/expenses/{id}/approve
     public function approveExpense(Request $request, int $id): JsonResponse
     {
-        $claim = ExpenseClaim::findOrFail($id);
+        $claim = ExpenseClaim::with('employee')->findOrFail($id);
         if ($claim->status !== 'pending') {
             return ApiResponse::error('Only pending claims can be approved.', 422);
         }
@@ -226,6 +288,16 @@ class EmployeeController extends Controller
             'status'      => $data['action'] === 'approve' ? 'approved' : 'rejected',
             'approved_by' => $request->user()->id,
         ]);
+
+        if ($claim->employee?->user_id !== null) {
+            $this->notifications->notify(
+                $claim->employee->user_id,
+                'APPROVAL_REQUEST',
+                'Expense claim '.$claim->status,
+                'AED '.number_format((float) $claim->amount, 2)." — {$claim->description}",
+                '/hr',
+            );
+        }
 
         return ApiResponse::success(['status' => $claim->status], 'Expense claim updated.');
     }

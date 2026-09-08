@@ -42,6 +42,58 @@ export interface SalesTarget {
   achievement_pct: number;
 }
 
+export interface SalaryComponent {
+  id: number;
+  employee_id?: number;
+  type: 'allowance' | 'deduction';
+  name: string;
+  amount: number;
+  is_recurring: boolean;
+  is_active: boolean;
+  created_by_name?: string | null;
+}
+
+export interface PayslipLine {
+  type: 'basic' | 'allowance' | 'deduction' | 'commission';
+  label: string;
+  amount: number;
+}
+
+export interface Payslip {
+  id: number;
+  pay_run_id: number;
+  employee_id?: number;
+  employee_name?: string;
+  period_month: number;
+  period_year: number;
+  status: 'draft' | 'approved' | 'paid';
+  basic_salary: number;
+  total_allowances: number;
+  total_deductions: number;
+  commission_amount: number;
+  gross_pay: number;
+  net_pay: number;
+  created_at: string;
+  lines: PayslipLine[];
+}
+
+export interface PayRun {
+  id: number;
+  branch_id: number;
+  branch_name: string | null;
+  period_month: number;
+  period_year: number;
+  status: 'draft' | 'approved' | 'paid';
+  total_net_pay: number;
+  payslip_count: number;
+  created_by_name: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  payslips?: Payslip[];
+}
+
 export interface EmployeeProfile {
   id: number;
   employee_number: string | null;
@@ -53,11 +105,15 @@ export interface EmployeeProfile {
   join_date: string | null;
   end_date: string | null;
   basic_salary: number;
+  bank_name: string | null;
+  bank_iban: string | null;
   is_active: boolean;
   branch_name: string | null;
   documents: EmployeeDocument[];
   expense_claims: ExpenseClaim[];
   sales_targets: SalesTarget[];
+  salary_components: SalaryComponent[];
+  payslips: Payslip[];
 }
 
 export interface RecentInvoice {

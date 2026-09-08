@@ -16,7 +16,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id', 'branch_id', 'name', 'employee_number', 'designation',
         'phone', 'email', 'nationality', 'join_date', 'end_date',
-        'basic_salary', 'is_active',
+        'basic_salary', 'bank_name', 'bank_iban', 'is_active',
     ];
 
     protected $casts = [
@@ -31,4 +31,6 @@ class Employee extends Model
     public function documents(): HasMany { return $this->hasMany(EmployeeDocument::class)->orderBy('expiry_date'); }
     public function expenseClaims(): HasMany { return $this->hasMany(ExpenseClaim::class)->orderByDesc('claim_date'); }
     public function salesTargets(): HasMany { return $this->hasMany(SalesTarget::class)->orderByDesc('period_year')->orderByDesc('period_month'); }
+    public function salaryComponents(): HasMany { return $this->hasMany(SalaryComponent::class); }
+    public function payslips(): HasMany { return $this->hasMany(Payslip::class)->orderByDesc('created_at'); }
 }
