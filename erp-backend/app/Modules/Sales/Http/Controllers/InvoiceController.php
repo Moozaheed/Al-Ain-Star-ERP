@@ -6,15 +6,20 @@ namespace App\Modules\Sales\Http\Controllers;
 
 use App\Modules\Sales\Http\Resources\InvoiceResource;
 use App\Modules\Sales\Models\Invoice;
+use App\Modules\Sales\Services\InvoicePdfService;
 use App\Modules\Sales\Services\InvoiceService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Symfony\Component\HttpFoundation\Response;
 
 class InvoiceController extends Controller
 {
-    public function __construct(private readonly InvoiceService $service) {}
+    public function __construct(
+        private readonly InvoiceService $service,
+        private readonly InvoicePdfService $pdfService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -74,6 +79,14 @@ class InvoiceController extends Controller
         $invoice = Invoice::with(['items.part', 'customer', 'createdBy'])->findOrFail($id);
 
         return ApiResponse::success(new InvoiceResource($invoice));
+    }
+
+    public function pdf(int $id): Response
+    {
+        $invoice = Invoice::findOrFail($id);
+        $pdf     = $this->pdfService->render($invoice);
+
+        return $pdf->download("Invoice-{$invoice->invoice_number}.pdf");
     }
 
     public function void(Request $request, int $id): JsonResponse

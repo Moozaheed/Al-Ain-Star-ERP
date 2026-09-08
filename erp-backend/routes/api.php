@@ -152,6 +152,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/sales/invoices', [App\Modules\Sales\Http\Controllers\InvoiceController::class, 'index'])->middleware('permission:sales.read,sanctum');
     Route::post('/sales/invoices', [App\Modules\Sales\Http\Controllers\InvoiceController::class, 'store'])->middleware('permission:sales.create,sanctum');
     Route::get('/sales/invoices/{id}', [App\Modules\Sales\Http\Controllers\InvoiceController::class, 'show'])->whereNumber('id')->middleware('permission:sales.read,sanctum');
+    Route::get('/sales/invoices/{id}/pdf', [App\Modules\Sales\Http\Controllers\InvoiceController::class, 'pdf'])->whereNumber('id')->middleware('permission:sales.read,sanctum');
     Route::post('/sales/invoices/{id}/void', [App\Modules\Sales\Http\Controllers\InvoiceController::class, 'void'])->whereNumber('id')->middleware('permission:sales.approve,sanctum');
 
     // Sales - Quotations
